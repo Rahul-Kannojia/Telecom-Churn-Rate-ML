@@ -1,0 +1,117 @@
+Business Case for PRCL-0017:
+============================
+
+No-Churn Telecom is an established Telecom operator in Europe with more than a decade in Business. Due to new players in the market, telecom industry  has become very competitive and retaining customers becoming a challenge.  In spite of No-Churn initiatives of reducing tariffs and promoting more offers, the churn rate ( percentage of customers migrating to competitors) is well above 10%. No-Churn wants to explore possibility of Machine Learning to help with following use cases to retain competitive edge in the industry. 
+ 
+PROJECT GOAL  
+ Help No-Churn with their use cases with ML 
+1. Understanding the variables that are influencing the customers to migrate. 
+2. Creating Churn risk scores that can be indicative to drive retention campaigns. 
+3. Introduce new predicting  variable “CHURN-FLAG” with values YES(1) or NO(0) so that email campaigns with lucrative offers can be targeted to Churn YES customers. help to identify possible CHURN-FLAG YES customers and provide more attention in customer touch point areas, including customer care support, request fulfilment, auto categorizing tickets as high priority for quick resolutions any questions they may have etc.
+
+
+=====================================================
+install library: !pip install pymysql sqlalchemy pandas
+
+---------
+import pandas as pd
+from sqlalchemy import create_engine
+
+# Replace with your actual credentials
+engine = create_engine("mysql+pymysql://username:password@localhost:3306/db_name")
+
+# Run query and save to CSV
+df = pd.read_sql("SELECT * FROM your_table_name", engine)
+df.to_csv("exported_data.csv", index=False)
+==============================================================================
+import pandas as pd
+import phik
+from phik.report import plot_correlation_matrix
+import matplotlib.pyplot as plt
+
+# Assuming your main dataset is loaded into a DataFrame called 'df'
+
+# Step 1: Define the features to evaluate
+# We intentionally leave out 'date_of_registration' for now, as raw dates 
+# have high cardinality and can distort the matrix.
+categorical_features = ['telecom_partner', 'gender', 'state', 'city']
+target = 'CHURN_FLAG'
+
+cols_to_evaluate = categorical_features + [target]
+
+# Step 2: Calculate the Phi-K matrix
+# The .phik_matrix() function automatically detects categorical columns
+phik_matrix = df[cols_to_evaluate].phik_matrix()
+
+# Step 3: Visualize the matrix
+plot_correlation_matrix(
+    phik_matrix.values, 
+    x_labels=phik_matrix.columns, 
+    y_labels=phik_matrix.index, 
+    vmin=0, vmax=1, color_map="coolwarm",
+    title=r"Phi-K Correlation Matrix (including CHURN_FLAG)", 
+    fontsize_factor=1.2, 
+    figsize=(8, 6)
+)
+
+plt.tight_layout()
+plt.show()
+
+# Step 4 (Optional): Print the specific correlations with the target
+print("\nCorrelation with CHURN_FLAG:")
+print(phik_matrix['CHURN_FLAG'].sort_values(ascending=False))
+======================================================================
+
+import pandas as pd
+
+# 1. First, ensure pandas recognizes the column as a true datetime object, not a string
+df['date_of_registration'] = pd.to_datetime(df['date_of_registration'])
+
+# 2. Define your reference date (e.g., the day the data was exported)
+# If you don't know the exact export date, using the maximum date in the column is a safe bet:
+reference_date = df['date_of_registration'].max()
+
+# 3. Calculate the difference in days to create a continuous numerical feature
+df['tenure_days'] = (reference_date - df['date_of_registration']).dt.days
+
+# 4. Drop the original categorical date column
+df = df.drop('date_of_registration', axis=1)
+
+======================================================================
+============Step 1: Calculate and Filter the Training Data
+import scorecardpy as sc
+
+# 1. Calculate the Information Value (IV) for all features in your training set
+print("Calculating Information Value...")
+iv_summary = sc.iv(df_train, y="CHURN_FLAG")
+
+# 2. Display the features ranked from strongest to weakest
+# This will show you exactly what the algorithm thinks of your data
+print("\n--- Information Value Ranking ---")
+print(iv_summary.sort_values(by='info_value', ascending=False))
+
+# 3. Automatically drop useless features (IV < 0.02)
+# var_filter creates a new dataframe with only the predictive columns
+print("\nFiltering out weak features...")
+df_train_filtered = sc.var_filter(df_train, y="CHURN_FLAG", iv_limit=0.02)
+
+# 4. Separate the filtered data back into X and y for your machine learning model
+X_train_selected = df_train_filtered.drop('CHURN_FLAG', axis=1)
+y_train_selected = df_train_filtered['CHURN_FLAG']
+
+print(f"\nOriginal feature count: {X_train.shape[1]}")
+print(f"Selected feature count: {X_train_selected.shape[1]}")
+
+===================Step 2: Align Your Test Set=======================
+# Extract the list of columns that survived the IV filter
+selected_columns = X_train_selected.columns.tolist()
+
+# Slice the test set to match
+X_test_selected = X_test[selected_columns]
+
+print(f"Test set aligned. New X_test shape: {X_test_selected.shape}")
+
+==============================
+
+Best Parameters:
+{'colsample_bytree': 0.8, 'gamma': 1, 'learning_rate': 0.01, 'max_depth': 4, 'min_child_weight': 1, 'n_estimators': 100, 'reg_alpha': 0.1, 'reg_lambda': 10, 'subsample': 0.9}

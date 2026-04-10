@@ -1,0 +1,48 @@
+import pandas as pd
+import numpy as np
+
+# Create a dictionary to store the results so you can plot them later
+feature_importances_dict = {}
+
+# Assuming 'models' is a dictionary like: {'XGBoost': xgb_model, 'Logistic': log_model}
+for model_name, model in models.items():
+    print(f"\n========== Top Features for {model_name} ==========")
+    
+    # ---------------------------------------------------------
+    # SCENARIO 1: Tree-Based Models (XGBoost, LightGBM, RF)
+    # ---------------------------------------------------------
+    if hasattr(model, 'feature_importances_'):
+        importances = model.feature_importances_
+        
+        feature_imp = pd.DataFrame({
+            'Feature': x_train_scaled.columns, 
+            'Importance': importances
+        }).sort_values(by="Importance", ascending=False)
+        
+        print(feature_imp.head(10).to_string(index=False))
+        feature_importances_dict[model_name] = feature_imp
+
+    # ---------------------------------------------------------
+    # SCENARIO 2: Linear Models (Logistic Regression)
+    # ---------------------------------------------------------
+    elif hasattr(model, 'coef_'):
+        # For classification, coef_ is usually a 2D array (e.g., [[0.5, -1.2, 0.3]])
+        # We take the first row [0] and use the Absolute value (np.abs) because 
+        # a strong negative coefficient is just as important as a strong positive one.
+        importances = np.abs(model.coef_[0])
+        
+        feature_imp = pd.DataFrame({
+            'Feature': x_train_scaled.columns, 
+            'Absolute Coefficient': importances
+        }).sort_values(by="Absolute Coefficient", ascending=False)
+        
+        print(feature_imp.head(10).to_string(index=False))
+        feature_importances_dict[model_name] = feature_imp
+
+    # ---------------------------------------------------------
+    # SCENARIO 3: Models without built-in importances (Naive Bayes)
+    # ---------------------------------------------------------
+    else:
+        print(f"Algorithm '{model_name}' does not support direct feature importance extraction.")
+        
+    print('='*55)
